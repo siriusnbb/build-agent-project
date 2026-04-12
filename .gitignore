@@ -1,0 +1,9 @@
+# Claude Code internals
+.claude/plans/
+.claude/memory/
+.claude/settings.local.json
+
+# Build artifacts (per-project, not tracked)
+# These are created in TARGET projects, not this repo
+# .build/
+# .status/
