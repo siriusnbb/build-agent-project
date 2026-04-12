@@ -16,16 +16,24 @@ description: "Phase 2: 项目脚手架。创建目录结构、配置文件、构
 
 ## 任务
 
-1. **创建目录结构**
+1. **创建目录结构**（按 build-plan.md 选择的架构模式调整）
+
+   **所有模式共有：**
    - `app/` 根目录：`__init__.py`、`agent.py`、`config.py`、`prompt.py`
-   - `app/sub_agents/{name}/` 每个含 `__init__.py`、`agent.py`、`prompt.py`
    - `app/shared_libraries/`：`__init__.py`、`callbacks.py`
-   - `app/app_utils/`：`deploy.py`、`telemetry.py`、`typing.py`
-   - `app/tools/`：`__init__.py`
+   - `app/tools/`：`__init__.py`（有共享 tool 时）
    - `tests/unit/`、`tests/integration/`、`tests/eval/evalsets/`、`tests/load_test/`
    - `deployment/terraform/`、`deployment/terraform/dev/`
    - `.github/workflows/`
    - `docs/design/`
+
+   **多 agent 模式时增加：**
+   - `app/sub_agents/{name}/` 每个含 `__init__.py`、`agent.py`、`prompt.py`
+   - `app/app_utils/`：`deploy.py`、`telemetry.py`、`typing.py`
+
+   **Single Agent 模式可省略：**
+   - `app/sub_agents/` — 无子 agent
+   - `app/app_utils/` — 可按需创建
 
 2. **编写 pyproject.toml**
    - 项目元数据、Python 版本约束

@@ -12,7 +12,7 @@
 | `BaseAgent` | 确定性自定义 agent，用 Python 控制流编排子 agent | `from google.adk.agents import BaseAgent` |
 | `SequentialAgent` | 按顺序依次执行所有 sub_agents | `from google.adk.agents import SequentialAgent` |
 | `LoopAgent` | 循环执行 sub_agents，直到 `escalate=True` 或达到 max_iterations | `from google.adk.agents import LoopAgent` |
-| `ParallelAgent` | 并行执行所有 sub_agents（项目中未使用但 ADK 支持） | `from google.adk.agents import ParallelAgent` |
+| `ParallelAgent` | 并行执行所有 sub_agents，全部完成后继续 | `from google.adk.agents import ParallelAgent` |
 
 ---
 
@@ -266,7 +266,7 @@ class StateKeys:
 
 ---
 
-## 8. SequentialAgent + LoopAgent 组合
+## 8. SequentialAgent / LoopAgent / ParallelAgent 组合
 
 ### SequentialAgent — 顺序执行
 
@@ -303,6 +303,35 @@ LoopAgent(
 def exit_loop(tool_context: ToolContext) -> dict:
     tool_context.actions.escalate = True    # 触发 LoopAgent 退出
     return {}
+```
+
+### ParallelAgent — 并行执行
+
+所有 sub_agents 并行执行，全部完成后才继续。适合独立子任务：
+
+```python
+from google.adk.agents import ParallelAgent
+
+ParallelAgent(
+    name="parallel_analysis",
+    description="并行执行多路分析",
+    sub_agents=[
+        analyzer_a_agent,       # 独立分析任务 A
+        analyzer_b_agent,       # 独立分析任务 B
+    ],
+)
+```
+
+常见组合：ParallelAgent 并行收集数据 → SequentialAgent 串联后续合并步骤：
+
+```python
+root_agent = SequentialAgent(
+    name="root_agent",
+    sub_agents=[
+        parallel_analysis,      # 并行收集
+        merger_agent,           # 合并结果
+    ],
+)
 ```
 
 ---

@@ -11,22 +11,22 @@ description: "Phase 1: 需求分析 + 系统设计。解析需求文档，产出
 
 ## 开始前
 
-1. Read `knowledge/project-patterns.md` — 了解项目架构惯例
+1. Read `knowledge/project-patterns.md` — 架构模式目录和实现参考
 2. Read 用户提供的需求文档
 3. 如果是 Mode B（继续开发），Read 目标项目的现有代码结构以了解上下文
 
 ## 任务
 
 1. **解析需求文档**，提取核心业务目标和功能需求
-2. **确定 agent 图谱**：
-   - 需要哪些 agent，每个的类型（Agent / BaseAgent / SequentialAgent / LoopAgent）
-   - agent 之间的关系（父子、AgentTool、顺序执行）
-3. **定义 session state schema**：
+2. **选择架构模式**（参考 CLAUDE.md 架构模式一览表）：
+   - 根据选择指南确定核心模式（Single Agent / Sequential Pipeline / Deterministic Pipeline / Hierarchical / Loop Refinement / Parallel Fan-out / Hybrid）
+   - 说明选择理由（为什么该模式最适合本项目需求）
+3. **确定 agent 图谱**：
+   - 需要哪些 agent，每个的类型（Agent / BaseAgent / SequentialAgent / LoopAgent / ParallelAgent）
+   - agent 之间的关系（父子、AgentTool、顺序执行、并行、循环）
+4. **定义 session state schema**：
    - 每个 state key 的名称、类型、写入者、读取者
    - 按功能分组（Input / Pipeline / Intermediate / Output）
-4. **决定 pipeline 模式**：
-   - 确定性执行（BaseAgent）vs LLM 编排（Agent）vs 混合
-   - 是否需要 resume-from-failure
 5. **指定数据验证策略**：哪些数据需要 Pydantic schema
 6. **识别外部 API** 及其集成模式
 7. **识别所需 GCP 云资源**
@@ -51,8 +51,9 @@ description: "Phase 1: 需求分析 + 系统设计。解析需求文档，产出
 | Key | Type | Writer | Reader | Description |
 |-----|------|--------|--------|-------------|
 
-## 4. Pipeline 模式
-{编排策略：确定性 / LLM / 混合}
+## 4. 架构模式
+{选择的模式名称及理由}
+{编排策略详细说明}
 
 ## 5. 数据验证
 {需要 Pydantic schema 的数据结构}

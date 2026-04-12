@@ -18,24 +18,26 @@ description: "Phase 3: Agent 架构设计。定义 agent 拓扑、prompt、tool 
 
 ## 任务
 
-1. **编写 Root Agent**
-   - `app/agent.py` — root_agent 定义、root-level tools、App 包装
-   - `app/prompt.py` — root agent instruction
+0. **确认架构模式** — 读取 build-plan.md 中选择的架构模式，按该模式实现
 
-2. **编写每个 Sub-Agent**
+1. **编写 Agent 编排层**（按 build-plan.md 选择的架构模式）
+   - **Single Agent**: 仅 `app/agent.py`（root agent + 所有 tools）+ `app/prompt.py`
+   - **Sequential Pipeline**: `app/agent.py`（SequentialAgent）+ sub-agents
+   - **Deterministic Pipeline**: `app/agent.py` + `app/sub_agents/pipeline/agent.py`（BaseAgent 子类，含 resume-from-failure）
+   - **Hierarchical**: `app/agent.py`（Root Agent + AgentTool 包装）+ sub-agents
+   - **Loop Refinement**: `app/agent.py`（LoopAgent）+ sub-agents（含退出 tool）
+   - **Parallel Fan-out**: `app/agent.py`（ParallelAgent）+ sub-agents
+   - **Hybrid**: 按 build-plan 组合上述模式
+
+2. **编写每个 Sub-Agent**（多 agent 模式时）
    - `app/sub_agents/{name}/agent.py` — Agent 工厂函数 + agent 专属 tools（stub）
    - `app/sub_agents/{name}/prompt.py` — instruction 字符串
    - `app/sub_agents/{name}/__init__.py` — 导出
 
-3. **编写 PipelineAgent（如需要）**
-   - BaseAgent 子类，含 resume-from-failure 逻辑
-   - _run_async_impl 实现
-   - PIPELINE_COMPLETED_STEPS 追踪
-
-4. **编写 Pydantic Schema（如需要）**
+3. **编写 Pydantic Schema（如需要）**
    - `app/sub_agents/{name}/schema.py`
 
-5. **定义所有 Tool 签名（Stub）**
+4. **定义所有 Tool 签名（Stub）**
    - 函数名、docstring、参数类型、返回类型
    - 函数体只写 `return {"status": "stub", "message": "Not implemented"}`
    - ToolContext 参数必须是最后一个
