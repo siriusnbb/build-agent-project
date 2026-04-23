@@ -13,8 +13,9 @@ description: "Phase 3: Agent 架构设计。定义 agent 拓扑、prompt、tool 
 
 1. Read `knowledge/google-adk-guide.md` — ADK 框架用法
 2. Read `knowledge/project-patterns.md` — 项目架构惯例
-3. Read `{target_project}/.build/phase-1-planning/build-plan.md` — 需求和 agent 图谱
-4. Read `{target_project}/.build/phase-2-scaffold/scaffold-report.md` — 已创建的文件结构
+3. Read `knowledge/coding-standards.md` — Agent 类型选择、State 设计、Prompt 管理
+4. Read `{target_project}/.build/phase-1-planning/build-plan.md` — 需求和 agent 图谱
+5. Read `{target_project}/.build/phase-2-scaffold/scaffold-report.md` — 已创建的文件结构
 
 ## 任务
 

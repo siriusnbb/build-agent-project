@@ -4,6 +4,19 @@
 
 ---
 
+## 架构实现通用约定
+
+以下约定不因架构模式选择而变化，所有模式都适用：
+
+- **Sub-agents 目录**：`app/sub_agents/{name}/`（多 agent 模式时）
+- **Tools**：带 `ToolContext` 末参数的函数
+- **Session state**：集中式 `StateKeys` 类于 `config.py`
+- **AgentTool**：包装 sub-agent 为 tool（遵循 ADK 单父约束）
+
+详细实现参见下面各章节。
+
+---
+
 ## 1. 目录结构惯例
 
 ```

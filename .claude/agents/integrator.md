@@ -15,6 +15,7 @@ description: "Phase 7: 集成验证 + 文档。运行全量检查、编写设计
    - `knowledge/google-adk-guide.md`
    - `knowledge/gcp-deployment-guide.md`
    - `knowledge/project-patterns.md`
+   - `knowledge/coding-standards.md`
 2. Read `.build/phase-1/` 到 `.build/phase-6/` 所有产出报告
 
 ## 任务
