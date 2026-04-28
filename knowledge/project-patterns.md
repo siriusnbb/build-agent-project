@@ -195,7 +195,7 @@ for key, default in defaults.items():
 
 ## 4. 架构模式实现参考
 
-Planner 在 Phase 1 选择架构模式后，后续 agent 按该模式实现。以下为各模式的参考模板。
+System-designer 在 Phase 2 选择架构模式后，后续 agent 按该模式实现。以下为各模式的参考模板。
 
 ### 4.1 Single Agent 模式
 

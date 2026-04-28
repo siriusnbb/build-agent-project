@@ -1,7 +1,7 @@
 # Agent 项目编码规范
 
 本文档定义 Agent 项目的实现层规范：编码风格、架构约束、state 设计、
-日志与可观测性、错误处理、测试模式等。由 Phase 3–7 的 agent 按需加载，
+日志与可观测性、错误处理、测试模式等。由 Phase 4–8 的 agent 按需加载，
 不在 CLAUDE.md 全局注入，避免 context 膨胀。
 
 ## 编码风格 (Coding Standards)
@@ -113,3 +113,116 @@
 - 重试循环中，sleep 放在状态检查之后（检查 → 失败 → sleep → 再检查），不是之前
 - 最后一次失败后不 sleep，直接返回结果
 - 部分成功模式：如果部分项目成功，使用已成功的继续推进，异步清理失败的
+
+## Polling 设计模式
+- **短间隔 + 长总超时**，不是 "少次数 × 长 sleep"。例：每 15 秒检查一次，总超时 5 分钟（≈20 次检查），而不是 3 次 × 300 秒
+  - 反例：3 次 × 300 秒，如果在某次失败后 10 秒就完成，用户还得等满 5 分钟
+- 用 `monotonic()` 计算 deadline，不要用循环计数：
+  ```python
+  deadline = monotonic() + _TOTAL_TIMEOUT_SEC
+  while True:
+      if check_done(): return True
+      if monotonic() >= deadline: break
+      await asyncio.sleep(_POLL_INTERVAL_SEC)
+  ```
+- **异步上下文必须用 `await asyncio.sleep`**，不是 `time.sleep`——后者阻塞 event loop
+
+## 优先复用框架原生功能
+- 写自定义 plugin / agent / utility 之前，必须先翻 ADK 与 Google 官方库的 API
+  - 高频踩坑：自写 artifact 持久化（实际有 `SaveFilesAsArtifactsPlugin`）、自写 session 状态管理（实际有 EventActions/state_delta）
+- 复用方式优先级：**组合（composition） > 继承 > 自写**
+  - 组合：把官方组件当 delegate，自己只负责业务特定逻辑（验证、清理、业务 state key）
+  - 继承：只在需要扩展行为且基类支持时才用
+  - 自写：兜底选项
+
+## 客户端生命周期
+- 重客户端（gRPC / 大型 SDK 客户端）必须 process-wide 复用，不要在循环内 / 每次调用 new 一个
+  - 提供 `get_xxx_client()` 返回单例
+  - 用 context manager `override_credentials(client, token)` 临时切换鉴权头，退出时恢复
+  - 例：
+    ```python
+    client = get_document_client()  # 单例
+    with override_credentials(client, access_token) as c:
+        c.import_documents(request=...)
+    ```
+- token / 鉴权信息每次请求可能不同，用上下文管理器切换；但底层 transport / connection pool 共享
+
+## LRO（Long-Running Operation）失败处理
+- LRO 提交调用 raise 时，**不能假设 server 端 LRO 没启动**——可能是网络超时但服务端已接受请求
+- 失败清理路径必须考虑 race：可能后台 LRO 完成后留下"僵尸记录"（指向已删除资源的 metadata）
+- 安全策略：失败时清理走完整路径（删 metadata + 删 backing storage），多花的 N 次 NotFound 调用是关闭 race 的小代价
+
+## 同后端拷贝优先用 server-side copy
+- 同 backend 之间的拷贝（GCS-to-GCS / S3-to-S3 / DB-to-DB）永远用后端原生 API，不要先下载到内存再上传
+- ADK Artifact backend 是 GCS 时，用 `Bucket.copy_blob()`，bytes 不进应用内存
+- fallback 才用字节流转发：
+  ```python
+  if artifact_uri and artifact_uri.startswith("gs://"):
+      source_bucket.copy_blob(source_blob, target_bucket, target_path)
+  else:
+      # fallback: load_artifact + upload_from_string
+  ```
+
+## 异常捕获收窄
+- 禁止 `except Exception:` 包大块业务（会吞 KeyError / AttributeError / TypeError 等代码 bug）
+- 收窄到具体异常类型，并用 inline 注释说明为什么是这几个：
+  ```python
+  except (google.api_core.exceptions.GoogleAPIError, OSError, ValueError) as e:
+      # 只捕获预期的：API 失败 / IO 失败 / 函数自定义 ValueError
+      # 其他（KeyError 等）冒泡到 Cloud Logging
+  ```
+- 收窄后，调用栈里的 KeyError / AttributeError 会冒泡，方便定位 bug
+
+## Import 风格（PEP 8）
+- 必需依赖一律 top-level import
+- lazy import 仅在以下情况合理：
+  - 真的可选依赖（用 `try/except ImportError` 包裹）
+  - 打破循环 import
+  - 启动性能关键路径上的重模块（如 numpy 在 CLI 工具）
+- 不要"为了让函数自包含"而把必需依赖写成 lazy import
+
+## Stream 增量反馈（UX）
+- 长操作（>5 秒）必须拆成多个增量 Event，让用户看到中间进度
+- 例：上传 + 导入是两步，分别 yield 两个 Event：
+  ```python
+  # Event 1: 上传完成（state_delta 留空）
+  yield Event(content=upload_msg, actions=EventActions())
+
+  # ...do import (15-30s)...
+
+  # Event 2: 导入结果 + 原子 state commit
+  yield Event(content=import_msg, actions=EventActions(state_delta={...}))
+  ```
+- **state 原子提交**：所有 state 变更集中到最后一个 Event，中间 Event 的 `state_delta` 留空。这样中间 crash 时 state 完好，下次调用可通过 plugin/callback guard 恢复
+- 措辞要反映异步语义：LRO 提交成功只是"受理"，不是"完成"——避免给用户错误的"已完成"感
+
+## 契约设计
+- 收紧契约 > 防御性分支：调用方保证的不变量，被调方不要再 if 检查
+- 在 docstring / type hint 写明前置条件（"X is required when Y is provided"）
+- 真要防御就在外层入口加 assert / ValueError，不要散落多处 if
+
+## ABC 默认实现
+- `@abstractmethod` 只用于"真正各子类都不同"的方法
+- 多个子类可能用相同实现的方法，直接给 concrete default：
+  ```python
+  class BaseFoo(ABC):
+      @abstractmethod
+      def _create_planner(self): ...        # 各子类必须自定义
+
+      def _create_verifier(self):           # 给默认，子类需要时再 override
+          return create_default_verifier()
+  ```
+- 否则会出现"两个子类各 override 一次，但 body 完全相同"的代码味道
+
+## State 通信：用结构化数据，不用文本标记
+- 组件间传递信息走 session.state（dict 形式），不要把信息编码进文本再让下游 regex 解析
+- 反例：plugin 在消息里插入 `[Uploaded file: "x.pdf"]`，下游 callback regex 解析这段文本恢复文件名
+  - 用户输入有碰撞风险
+  - 两侧硬编码字符串字面量，没有 single source of truth
+- 正例：plugin 在 `session.state['xxx:pending_uploads']` 写 `[{file_name, mime_type, artifact_uri}, ...]`，下游从 state 直接读
+- **数据所在位置就是写 state 的位置**：信息在哪个组件天然可见，就在该组件直接写，不要 push-and-reparse
+
+## 私有方法位置（就近原则）
+- 只被一个类用 → 放该类内部（`@staticmethod` / private method）
+- 第二个调用方出现时再提升到模块级 / shared_libraries
+- 不要为"将来可能复用"提前抽象，等真有第二处调用再重构

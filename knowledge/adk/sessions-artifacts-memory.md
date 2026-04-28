@@ -261,6 +261,37 @@ filenames = await tool_context.list_artifacts()
 
 ---
 
+### Artifact 的 server-side copy（同 backend 优化）
+
+**反模式**：用 `load_artifact()` 把文件 bytes 读到内存，再 `upload_from_string()` 上传到业务 GCS bucket——bytes 完全在应用内存里走一圈，对大 PDF 尤其浪费。
+
+**正确模式**：当 artifact backend 是 GCS（生产 Vertex AI 默认）时，artifact 已经是 GCS object，可以走 GCS-to-GCS 的 server-side copy：
+
+```python
+# 1. 取 artifact 的 canonical URI（gs:// 形式）
+artifact_version = await artifact_service.get_artifact_version(
+    app_name=..., user_id=..., session_id=..., filename=fn, version=version,
+)
+artifact_uri = getattr(artifact_version, "canonical_uri", None)
+
+# 2. 如果是 gs:// 用 server-side copy
+if artifact_uri and artifact_uri.startswith("gs://"):
+    _, _, bucket_and_path = artifact_uri.partition("gs://")
+    source_bucket_name, _, source_blob_name = bucket_and_path.partition("/")
+    source_bucket = client.bucket(source_bucket_name)
+    source_blob = source_bucket.blob(source_blob_name)
+    source_bucket.copy_blob(source_blob, target_bucket, target_path)
+else:
+    # 3. fallback: load_artifact + upload_from_string
+    artifact = await context.load_artifact(filename=fn)
+    bytes_data = artifact.inline_data.data
+    target_bucket.blob(target_path).upload_from_string(bytes_data)
+```
+
+**适用范围**：S3-to-S3 / GCS-to-GCS / 同库 DB-to-DB 的场景永远优先 server-side copy。fallback 路径处理 backend 不是 GCS（如 `InMemoryArtifactService`、`FileArtifactService`）的情况。
+
+---
+
 ## Memory Services
 
 **Import 总览**：

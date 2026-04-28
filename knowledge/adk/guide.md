@@ -77,6 +77,7 @@
 | Agent 端到端 eval | advanced.md（Evaluation） |
 | google_search grounding | advanced.md（Grounding） 或 tools.md（内置 tool） |
 | 安全 / 内容过滤 | advanced.md（Safety） |
+| 加载 ADK Skill / Frontmatter / 从 GCS 加载 skill | advanced.md（Skills） |
 | adk optimize 自动优化 | advanced.md + runtime-and-deploy.md |
 
 ---

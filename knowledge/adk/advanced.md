@@ -209,38 +209,99 @@ pytest tests/integration/ && make eval
 
 ## Skills（实验性）
 
-**用途**：模块化的功能单元，遵循 Agent Skills 规范。可动态加载到 agent。
+> ⚠️ ADK 1.14+ 实验性，API 还在变。处于 active development。
+
+**用途**：模块化的功能单元，遵循 Agent Skills 规范。可动态加载到 agent，复用 prompt + 资源 + 脚本。
 
 **Import**：
 ```python
-from google.adk.skills import ...  # 见 src/google/adk/skills/__init__.py
+from google.adk.skills import (
+    Skill,
+    Frontmatter,
+    Resources,
+    Script,
+    load_skill_from_dir,
+    list_skills_in_dir,
+    load_skill_from_gcs_dir,
+    list_skills_in_gcs_dir,
+    DEFAULT_SKILL_SYSTEM_INSTRUCTION,
+)
 ```
 
-### Skill 结构
+### Skill 目录结构
 
-| 层 | 内容 |
-|----|------|
-| L1 | 元数据（name、description、capabilities） |
-| L2 | Instructions（skill 自己的 prompt 片段） |
-| L3 | Resources（`references/`、`assets/`、`scripts/`） |
+一个 skill 是磁盘上的一个目录，约定结构：
 
-### 加载
+```
+my_skill/
+├── SKILL.md              # 必有：Frontmatter（YAML） + Instructions（Markdown 正文）
+├── references/           # 可选：长文/规范/参考资料（被 Resources 引用）
+├── assets/               # 可选：图片、模板等静态资产
+└── scripts/              # 可选：辅助脚本（被 Script 引用）
+```
+
+**Frontmatter**（位于 `SKILL.md` 顶部 YAML）：装载 skill 的元数据 —— `name` / `description` / `capabilities` 等。
+**Resources**：引用 `references/` 和 `assets/` 下的内容，让 LLM 在需要时按需加载。
+**Script**：引用 `scripts/` 下的可执行脚本（沙箱执行）。
+
+### 三层模型
+
+| 层 | 内容 | 对应数据类 |
+|----|------|----------|
+| L1 元数据 | name / description / capabilities | `Frontmatter` |
+| L2 Instructions | SKILL.md 的 Markdown 正文（skill 自己的 prompt 片段） | `Skill.instructions` |
+| L3 资源 | references / assets / scripts | `Resources` / `Script` |
+
+### 从本地目录加载
 
 ```python
-# 从目录加载：
-from google.adk.skills import load_skill_from_dir   # 以源码为准
+from google.adk.skills import load_skill_from_dir, list_skills_in_dir
+
+# 加载单个 skill
 skill = load_skill_from_dir("/path/to/my_skill")
 
-# 编程方式：
-from google.adk.skills import Skill
-skill = Skill(name="...", instructions="...", ...)
+# 列出某目录下所有 skill（每个子目录一个 skill）
+skills = list_skills_in_dir("/path/to/skills_root")
 ```
 
-（具体 API 以源码 `src/google/adk/skills/` 为准。）
+### 从 GCS 加载（生产部署用）
+
+```python
+from google.adk.skills import load_skill_from_gcs_dir, list_skills_in_gcs_dir
+
+# 单个 skill：gs://my-bucket/skills/my_skill/
+skill = load_skill_from_gcs_dir("gs://my-bucket/skills/my_skill")
+
+# 批量列出
+skills = list_skills_in_gcs_dir("gs://my-bucket/skills")
+```
+
+GCS 变体让 skill 可以独立于 agent 镜像部署，无需重新打包就能更新 skill 内容。
+
+### 编程式构造 Skill
+
+```python
+from google.adk.skills import Skill, Frontmatter
+
+skill = Skill(
+    frontmatter=Frontmatter(
+        name="my_skill",
+        description="...",
+    ),
+    instructions="...",     # Markdown 正文
+    # resources=..., scripts=... 见源码
+)
+```
+
+### 挂到 agent 上
+
+ADK 提供 `DEFAULT_SKILL_SYSTEM_INSTRUCTION`：用于在 agent 的 instruction 里告诉 LLM "你有这些 skill 可用"。具体挂载方式以源码 `src/google/adk/skills/` 和 `contributing/samples/skills_agent` 为准。
 
 **Docs**：https://adk.dev/skills/
-
+**Source**：https://github.com/google/adk-python/tree/main/src/google/adk/skills
 **示例**：https://github.com/google/adk-python/tree/main/contributing/samples/skills_agent
+
+**与 Claude Code Skills 的区别**：ADK Skills 是 ADK agent 在运行时加载的能力包；Claude Code Skills 是 Claude Code CLI 自身的扩展机制。两者不通用、不互操作，不要混淆。
 
 ---
 

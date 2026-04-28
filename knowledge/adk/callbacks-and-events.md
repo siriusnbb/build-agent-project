@@ -233,6 +233,47 @@ yield Event(
 
 ---
 
+## ⚠️ State 写入：必须用 `EventActions(state_delta=...)`，不要直接 mutate
+
+**关键规则**：在 `BaseAgent._run_async_impl` 里**不要**直接写 `ctx.session.state[key] = value`。
+在 server-side session（Vertex AI Session Service）上，这种修改不会通过框架的持久化路径，可能丢失。
+
+**正确写法**：
+```python
+yield Event(
+    invocation_id=ctx.invocation_id,
+    author=self.name,
+    content=types.Content(role="model", parts=[...]),
+    actions=EventActions(state_delta={
+        StateKeys.UPLOAD_QUEUE: [],
+        StateKeys.IMPORT_SUCCEEDED: True,
+    }),
+)
+```
+
+**何时用什么 API**：
+
+| 上下文 | 写 state 的方式 |
+|--------|---------------|
+| `BaseAgent._run_async_impl` | **必须** yield Event with `EventActions(state_delta=...)` |
+| `before_agent_callback` / `after_agent_callback` | 直接 `callback_context.state[key] = value`（ADK 自动追踪 delta） |
+| Plugin 各 callback | 直接 `callback_context.state[key]`（同上） |
+| Tool 函数 | 直接 `tool_context.state[key]`（同上） |
+
+**多 Event 时的原子提交模式**：长操作拆成多个 Event 时，所有 state 变更集中在最后一个 Event 的 `state_delta` 提交，中间 Event 的 `actions=EventActions()`（空）。这样中间 crash 时 state 完好。
+
+```python
+# Event 1: 上传完成（state 不变）
+yield Event(content=upload_msg, actions=EventActions())
+
+# ...do import (15-30s)...
+
+# Event 2: 最终结果 + 原子 state commit
+yield Event(content=import_msg, actions=EventActions(state_delta={...}))
+```
+
+---
+
 ## Plugins（跨切面机制）
 
 **用途**：类似 AOP，把横切关注点（logging、retry、guardrails）从业务 agent 抽出，全局挂载到 runner 上。
@@ -275,7 +316,52 @@ from google.adk.plugins import (
 | `LoggingPlugin` | 标准 INFO 级日志（agent / tool / model 调用） |
 | `DebugLoggingPlugin` | 详细 DEBUG 日志（state 变更、full prompt） |
 | `ReflectAndRetryToolPlugin` | Tool 失败时让 LLM reflect 并重试 |
-| （社区 / integrations 中）BigQuery Analytics、Context Filter、Global Instruction、Save Files as Artifacts | 见 Integrations 目录 |
+| `SaveFilesAsArtifactsPlugin` | 自动把 user message 里的 inline_data 存成 artifact，插入 `[Uploaded Artifact: "..."]` 占位符，附 `FileData` Part，commit `artifact_delta` |
+| （社区 / integrations 中）BigQuery Analytics、Context Filter、Global Instruction | 见 Integrations 目录 |
+
+### `SaveFilesAsArtifactsPlugin` 复用模式（高频踩坑点）
+
+**场景**：处理 user 上传文件 → 存 artifact → 插入文本占位符给 LLM 看 → commit `artifact_delta`。
+
+**反模式**：自写一个 plugin 全程包办，忽略官方已有的 `SaveFilesAsArtifactsPlugin`。结果重复实现 `save_artifact`、占位符文本、`FileData` Part、`artifact_delta`，维护负担翻倍，还容易写错（占位符碰撞、delta 漏 commit 等）。
+
+**正确模式**：用**组合**复用官方 plugin，自己只加业务逻辑（文件类型校验、文件名清理、业务 state key）：
+
+```python
+from google.adk.plugins.save_files_as_artifacts_plugin import SaveFilesAsArtifactsPlugin
+
+class StripInlineDataPlugin(BasePlugin):
+    def __init__(self):
+        super().__init__(name="strip_inline_data_plugin")
+        # 组合，不继承——业务逻辑保持独立于 delegate 的内部实现
+        self._artifact_plugin = SaveFilesAsArtifactsPlugin(name=self.name)
+
+    async def on_user_message_callback(self, *, invocation_context, user_message):
+        # 1. 业务前置：校验扩展名 / 清理文件名 / 拒收非法
+        sanitized_message = self._validate_and_sanitize(user_message)
+
+        # 2. 委托给官方 plugin：save_artifact + 占位符 + FileData + artifact_delta
+        result = await self._artifact_plugin.on_user_message_callback(
+            invocation_context=invocation_context,
+            user_message=sanitized_message,
+        )
+
+        # 3. 业务后置：写自己的 state scratchpad
+        invocation_context.session.state[f"{self.name}:pending_uploads"] = [...]
+
+        return result
+
+    async def before_agent_callback(self, *, agent, callback_context):
+        # 把 scratchpad 提升为正式 state key
+        callback_context.state[StateKeys.UPLOAD_QUEUE] = [...]
+        # 委托：commit artifact_delta
+        await self._artifact_plugin.before_agent_callback(agent=agent, callback_context=callback_context)
+```
+
+**核心要点**：
+- **组合 > 继承**：保持业务逻辑与官方 delegate 解耦，将来官方 plugin 升级不会破坏自己的代码
+- **不要在消息文本里编码业务信息**（比如解析 `[Uploaded file: "..."]` 恢复文件名）——用结构化 state（`session.state` 里的 dict / list）传递
+- **artifact 的 canonical URI** 通过 `artifact_service.get_artifact_version(...).canonical_uri` 取得，可以传给下游做 GCS-to-GCS server-side copy
 
 ---
 
