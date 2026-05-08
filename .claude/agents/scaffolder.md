@@ -13,8 +13,10 @@ description: "Phase 3: 项目脚手架。创建目录结构、配置文件、构
 
 1. Read `knowledge/project-patterns.md` — 了解目录结构和配置惯例
 2. Read `{target_project}/.build/phase-1-requirements/requirements.md` — 了解项目需求（功能 / 非功能）
-3. Read `{target_project}/.build/phase-2-design/build-plan.md` — 了解架构设计与 deployment_mode 限定的资源选型
-4. **Mode B 必做**：Read `existing-project-snapshot.md` + 现存 `pyproject.toml` / `Makefile` / `app/config.py` / `.gitignore` — 了解现有脚手架。本 phase 在 Mode B 下**只增量补充缺失项，不重写已有文件**；若必须改动现有配置（如调整依赖版本、修改 StateKeys），先与用户确认
+3. Read `{target_project}/.build/phase-1-requirements/acceptance.yaml` — 了解 P0 验收 check 的需要（用来确认 runner 依赖正确）
+4. Read `.claude/skills/build-agent-project/acceptance-yaml-schema.md` — 了解 runner 行为 + 依赖
+5. Read `{target_project}/.build/phase-2-design/build-plan.md` — 了解架构设计与 deployment_mode 限定的资源选型
+6. **Mode B 必做**：Read `existing-project-snapshot.md` + 现存 `pyproject.toml` / `Makefile` / `app/config.py` / `.gitignore` — 了解现有脚手架。本 phase 在 Mode B 下**只增量补充缺失项，不重写已有文件**；若必须改动现有配置（如调整依赖版本、修改 StateKeys），先与用户确认
 
 ## 任务
 
@@ -66,10 +68,24 @@ description: "Phase 3: 项目脚手架。创建目录结构、配置文件、构
 
 5. **编写 README.md**
 
+6. **创建 acceptance runner**（acceptance.yaml 机制基础设施，详见 `.claude/skills/build-agent-project/acceptance-yaml-schema.md`）：
+   - 把 `pyyaml>=6.0` 加入 dev dependencies
+   - 创建 `scripts/run_acceptance.py`：
+     - 读 `.build/phase-1-requirements/acceptance.yaml`
+     - 跑 5 种 type 的 auto_check（sql / api / python_call / file_check / bash）
+     - 每条 stdout 写入 `.build/phase-8-integration/acceptance-evidence/<check_id>.txt`
+     - 写 `_summary.txt` + `manual_pending.md`
+     - exit 0/1 表示是否全过
+     - 命令行：`--check <id>` / `--manual-only`
+   - 创建 `.build/phase-8-integration/acceptance-evidence/.gitkeep`（让目录入 git）
+   - **runner 实现参考**：可以从 `web_data_search` 项目（如果用户有这个仓库）拷贝 `scripts/run_acceptance.py` 作为模板（约 200 行 Python，stdlib + PyYAML + DuckDB）；或自己写一份按 schema 文档的接口实现
+   - 验证：跑 `python scripts/run_acceptance.py --manual-only` 应不报错（哪怕 yaml 还很简陋）
+
 ## 门控
 
 - `uv sync` 成功
 - `make lint` 通过（此时只检查格式，代码尚未完整）
+- `python scripts/run_acceptance.py --manual-only` exit 0（runner 自检）
 
 ## 输出
 
