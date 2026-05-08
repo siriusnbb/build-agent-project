@@ -21,7 +21,8 @@ description: "Phase 2: 系统设计。基于 requirements.md 做架构选型与 
    - `knowledge/adk/models-and-streaming.md` — 模型选型
    - 其他相关条目按 guide.md 反向索引查
 5. Read `knowledge/project-patterns.md` — 项目架构惯例
-6. **Mode B 必做**：
+6. Read `{target_project}/.build/phase-1-requirements/applicable-feedback.md` —— **只看「给 system-designer」分节**（如有；用户 memory feedback 分流到本 phase）
+7. **Mode B 必做**：
    - Read `{target_project}/.build/phase-1-requirements/existing-project-snapshot.md` — Phase 1 留下的项目现状基线
    - Read 现存代码：`{target_project}/app/agent.py`、`app/sub_agents/*/agent.py`、`app/config.py`（StateKeys 现状）
    - 如存在则 Read `{target_project}/.build/phase-2-design/build-plan.md` — 既有架构设计

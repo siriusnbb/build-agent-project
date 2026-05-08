@@ -20,9 +20,10 @@ description: "Phase 4: Agent 架构设计。定义 agent 拓扑、prompt、tool 
    - 其他相关条目按 guide.md 反向索引查
 3. Read `knowledge/project-patterns.md` — 项目架构惯例
 4. Read `knowledge/coding-standards.md` — Agent 类型选择、State 设计、Prompt 管理
-5. Read `{target_project}/.build/phase-2-design/build-plan.md` — agent 图谱与 state schema
-6. Read `{target_project}/.build/phase-3-scaffold/scaffold-report.md` — 已创建的文件结构
-7. **Mode B 必做**：Read `existing-project-snapshot.md` + 现存 `app/agent.py` / `app/sub_agents/*/agent.py` / `app/sub_agents/*/prompt.py` — 了解既有 agent 拓扑和 prompt 风格。本 phase 在 Mode B 下**优先扩展既有 sub-agent，新建只在确实需要时**；命名风格、output_key 模式、callback 用法保持与现存一致；若必须重命名或删除现有 sub-agent / tool，先与用户确认
+5. Read `{target_project}/.build/phase-1-requirements/applicable-feedback.md` —— **只看「给 agent-designer」分节**（如有；用户 memory feedback 分流到本 phase）
+6. Read `{target_project}/.build/phase-2-design/build-plan.md` — agent 图谱与 state schema
+7. Read `{target_project}/.build/phase-3-scaffold/scaffold-report.md` — 已创建的文件结构
+8. **Mode B 必做**：Read `existing-project-snapshot.md` + 现存 `app/agent.py` / `app/sub_agents/*/agent.py` / `app/sub_agents/*/prompt.py` — 了解既有 agent 拓扑和 prompt 风格。本 phase 在 Mode B 下**优先扩展既有 sub-agent，新建只在确实需要时**；命名风格、output_key 模式、callback 用法保持与现存一致；若必须重命名或删除现有 sub-agent / tool，先与用户确认
 
 ## 任务
 

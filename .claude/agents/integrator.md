@@ -20,6 +20,7 @@ description: "Phase 8: 集成验证 + 文档。运行全量检查、编写设计
 3. Read `.build/phase-1-requirements/acceptance.yaml` — **最终验收依据**（你不再凭 LLM 自由解读 P0；必须跑 runner）
 4. Read `.claude/skills/build-agent-project/acceptance-yaml-schema.md` — runner 行为
 5. Read `.claude/skills/build-agent-project/testing-discipline.md` — **20 项测试盲点清单**，audit 时对照查漏
+5b. Read `.build/phase-1-requirements/applicable-feedback.md` —— **只看「给 integrator」分节**（用户 memory feedback 分流到本 phase）
 5. Read `.build/phase-2-design/build-plan.md` 到 `.build/phase-7-testing/test-report.md` 所有产出报告
 6. **Mode B 必做**：Read `existing-project-snapshot.md` + 现存 `docs/design/DESIGN_SPEC.md` / `docs/design/test_plan.md`（如有）。本 phase 在 Mode B 下**额外验证**：(a) 本次新增不破坏快照中标记的现有 P0 验收标准；(b) 新增的 state key / agent / tool 命名与现存不冲突；(c) DESIGN_SPEC.md 是更新追加而非整体替换。整合阶段最终报告必须明确写出"本次新增 vs 既有"的差异清单
 

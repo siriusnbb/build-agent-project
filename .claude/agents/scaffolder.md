@@ -15,8 +15,9 @@ description: "Phase 3: 项目脚手架。创建目录结构、配置文件、构
 2. Read `{target_project}/.build/phase-1-requirements/requirements.md` — 了解项目需求（功能 / 非功能）
 3. Read `{target_project}/.build/phase-1-requirements/acceptance.yaml` — 了解 P0 验收 check 的需要（用来确认 runner 依赖正确）
 4. Read `.claude/skills/build-agent-project/acceptance-yaml-schema.md` — 了解 runner 行为 + 依赖
-5. Read `{target_project}/.build/phase-2-design/build-plan.md` — 了解架构设计与 deployment_mode 限定的资源选型
-6. **Mode B 必做**：Read `existing-project-snapshot.md` + 现存 `pyproject.toml` / `Makefile` / `app/config.py` / `.gitignore` — 了解现有脚手架。本 phase 在 Mode B 下**只增量补充缺失项，不重写已有文件**；若必须改动现有配置（如调整依赖版本、修改 StateKeys），先与用户确认
+5. Read `{target_project}/.build/phase-1-requirements/applicable-feedback.md` —— **只看「给 scaffolder」分节**（用户 memory feedback 分流到本 phase 的部分）
+6. Read `{target_project}/.build/phase-2-design/build-plan.md` — 了解架构设计与 deployment_mode 限定的资源选型
+7. **Mode B 必做**：Read `existing-project-snapshot.md` + 现存 `pyproject.toml` / `Makefile` / `app/config.py` / `.gitignore` — 了解现有脚手架。本 phase 在 Mode B 下**只增量补充缺失项，不重写已有文件**；若必须改动现有配置（如调整依赖版本、修改 StateKeys），先与用户确认
 
 ## 任务
 
