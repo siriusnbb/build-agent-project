@@ -19,6 +19,7 @@ description: "Phase 8: 集成验证 + 文档。运行全量检查、编写设计
 2. Read `.build/phase-1-requirements/requirements.md` — 业务需求
 3. Read `.build/phase-1-requirements/acceptance.yaml` — **最终验收依据**（你不再凭 LLM 自由解读 P0；必须跑 runner）
 4. Read `.claude/skills/build-agent-project/acceptance-yaml-schema.md` — runner 行为
+5. Read `.claude/skills/build-agent-project/testing-discipline.md` — **20 项测试盲点清单**，audit 时对照查漏
 5. Read `.build/phase-2-design/build-plan.md` 到 `.build/phase-7-testing/test-report.md` 所有产出报告
 6. **Mode B 必做**：Read `existing-project-snapshot.md` + 现存 `docs/design/DESIGN_SPEC.md` / `docs/design/test_plan.md`（如有）。本 phase 在 Mode B 下**额外验证**：(a) 本次新增不破坏快照中标记的现有 P0 验收标准；(b) 新增的 state key / agent / tool 命名与现存不冲突；(c) DESIGN_SPEC.md 是更新追加而非整体替换。整合阶段最终报告必须明确写出"本次新增 vs 既有"的差异清单
 
@@ -86,6 +87,13 @@ description: "Phase 8: 集成验证 + 文档。运行全量检查、编写设计
 - grep 整个 `app/` 找 `if not.*continue / except.*pass / # TODO`
 - 非空命中必须在 final-report KNOWN GAP 节列出
 - 用户路径上的 placeholder 必须在 UI 有显眼提示（去 ui/src 验证）
+
+**e2. 测试纪律 20 项 audit（必做）**
+
+按 `testing-discipline.md` 的 4 大类 20 子项**对照 test-report**：
+- test-report 应有覆盖矩阵（test-engineer §5）；如缺，KNOWN GAP 列出
+- 抽样 3-5 条「未覆盖项」核实是否真的不适用，还是 implementer / test-engineer 漏了
+- final-report 必须重新评估：哪些项**确实 v1 不适用** / 哪些**应该补但没补**（Phase 8 来不及修就列入下次迭代）
 
 **e. final-report 不允许的总结性陈述**
 不能出现：
