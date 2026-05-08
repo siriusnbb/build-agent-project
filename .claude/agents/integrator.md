@@ -22,11 +22,25 @@ description: "Phase 8: 集成验证 + 文档。运行全量检查、编写设计
 5. Read `.claude/skills/build-agent-project/testing-discipline.md` — **20 项测试盲点清单**，audit 时对照查漏
 5b. Read `.build/phase-1-requirements/applicable-feedback.md` —— **只看「给 integrator」分节**（用户 memory feedback 分流到本 phase）
 5. Read `.build/phase-2-design/build-plan.md` 到 `.build/phase-7-testing/test-report.md` 所有产出报告
+5c. Read `.build/phase-7-5-redteam-review/red-team-review.md` —— **Phase 7.5 对抗性 review，必读**；含 critical / high / medium / low bug 清单 + 复现 + 修法建议
 6. **Mode B 必做**：Read `existing-project-snapshot.md` + 现存 `docs/design/DESIGN_SPEC.md` / `docs/design/test_plan.md`（如有）。本 phase 在 Mode B 下**额外验证**：(a) 本次新增不破坏快照中标记的现有 P0 验收标准；(b) 新增的 state key / agent / tool 命名与现存不冲突；(c) DESIGN_SPEC.md 是更新追加而非整体替换。整合阶段最终报告必须明确写出"本次新增 vs 既有"的差异清单
 
 ## 任务
 
-### 0. acceptance.yaml runner 必跑（Phase 8 第一动作）
+### 0a. 处理 Phase 7.5 red-team review（Phase 8 第一动作之一）
+
+Read `.build/phase-7-5-redteam-review/red-team-review.md`，按严重度处理：
+
+- **critical bug**：必须修才能进 Phase 8 PASS；可选：
+  - 自己修小 critical（< 30 行改动）
+  - 退回到对应 phase（implementer / test-engineer）让 sub-agent 修
+  - 明确退不下去时跟用户对齐：跳过 / 降级
+- **high bug**：写入 final-report KNOWN GAP，下次迭代修
+- **medium / low**：写入 `.build/phase-8-integration/next-iteration-todos.md`
+
+final-report 必须**逐条**列 red-team 发现的 bug 处理结果（critical 全部已修 ✓ / high 已记 KNOWN GAP / ...），不允许「red-team 发了报告但 final-report 不提」。
+
+### 0b. acceptance.yaml runner 必跑（Phase 8 第一动作）
 
 **这是最高优先级。在做任何其他验证前必须先跑通 runner**：
 
@@ -182,6 +196,7 @@ description: "Phase 8: 集成验证 + 文档。运行全量检查、编写设计
 - **`python scripts/run_acceptance.py` exit 0**（acceptance.yaml 的 auto_checks 全 PASS；不允许跳过 / 蒙混）
 - **`acceptance-evidence/` 目录非空 + 每条 auto_check 有对应 .txt 文件**
 - **`manual_pending.md` 真生成 + 列出所有 user_signed_off=false 的项**
+- **Phase 7.5 red-team-review.md 中所有 critical bug 已处理**（修 / 退回 / 跟用户对齐降级）
 - 文档路径引用正确
 - 所有 P0 验收标准映射可追溯到 evidence 文件
 
