@@ -395,6 +395,70 @@ integrator 在 Phase 8 B2 一致性检查：
 - 不能只说"应该是 X 原因"——必须实际查证再回答
 - 修复前后必须各跑一次端到端 smoke 验证
 
+#### 规则 6：同类问题一次性 audit，禁止 patch-and-fail loop（2026-05-19 追加）
+
+> 历史教训：某 PR 在 CI 上连续撞 3 个同类问题 (env var 在 record-time / replay-time 不对齐)，每次只修被点名的那一个、push、等 CI、撞下一个、再修。3 round 后用户截断："你在看看还有没有别的会影响的环境变量一次修改了、不要这样一遍遍的 debug 了"。共同 root cause 是「`.env` 加载差异」一整类问题，第一次撞时就该 audit 全部同类。
+
+任何 phase agent 发现 bug root cause 属于"一类问题" (e.g. "所有 env var 在 X 环境读不到"、"所有 sub-agent 都漏某个 callback"、"所有 API endpoint 都缺 schema 校验") 时：
+
+- **不能只修被报错点名的那一个**，必须 grep 整个 codebase 找全部同类、一次性对齐
+- 不修的同类也要**每个带一行理由**记录（防御下次又怀疑、做无用调查）
+- audit 结果用一张 table 列出，"影响 / 不影响 + 理由"，一个 commit 修 N 处而不是 N 个 commit 各修一处
+- 反模式：「他にも踩む可能性あるけど、撞いたら修す」(技术债 + reviewer 信頼 erosion + CI round count 爆发)
+
+判断"是一类问题"的信号：
+- 第二次同样 root cause 类型撞到时 → 一定 stop patch loop、改去 audit
+- Bug 的最简描述里含"X 类的"、"X 全部的" → 强类信号
+
+#### 规则 7：Debug instrumentation 必须 temporary 标签 + 一次性 cleanup（2026-05-19 追加）
+
+> 历史教训：debug 阶段连续加 5 个 instrumentation commit (CI workflow debug step / cassette miss diagnostic 函数 180 行 / hit count map / framework event field print / SDK version print)。Root cause fix 落地后忘了 cleanup、merge 进 main。新来的 reviewer 读代码看到 180 行的诊断函数、读半天不知道它是 debug 残骸还是 production behavior、最终发现没人在用。每个 reviewer 重复这个 cognitive cost。
+
+任何 phase agent 在 debug 中临时加 logging / print / diagnostic helper / CI workflow debug step 时：
+
+- **加的时候**: commit message 用 `debug(scope): ...` 前缀 + inline comment 第一行写 `DEBUG INSTRUMENTATION (temporary)` 标签
+- **Root cause fix 落地后**: 专用 cleanup commit (`chore(scope): remove debug instrumentation`)，按 grep 标签一次性删除全部 instrumentation。不要 commit-by-commit 渐进 unwind
+- **不留**: commented-out 代码 / "万一以后还要用" 的 dead branch / `logger.debug(...)` 残骸
+- **Sanity test 跟 debug instrumentation 严格区分生命周期**: sanity test 是永久 invariant 守护、debug instrumentation 是临时诊断、不混用。如果某条 instrumentation 真的有长期价值、重新分类成 sanity test、单独 commit + 配 doc 解释为什么 keep
+
+Cleanup commit 的 net 行数 (deletions − insertions) 大于 0 是基本要求 —— 如果加了 200 行 instrumentation、cleanup commit 应该 -200 左右。
+
+#### 规则 8：Agent 输出可信度强化机制（2026-05-20 追加）
+
+> 历史教训：让 LLM 自由输出文本然后 parse / 让 LLM 一次性填整个 schema / 让 LLM 输出 URL 和 source 引用——这三种是 production agent 系统里最频繁的失稳源。LLM 一致性差、会幻觉 URL、会编造数据、字段间会互相影响 (fluent reasoning bias)。Production agent 必须在多 layer 锁住 LLM 输出。
+>
+> D&O Underwriting Agent 在这块下了重金沉淀、详细经验包: `/Users/sdl469/Documents/llm_output_stabilization_techniques.md`
+
+implementer (Phase 5) 实装任何 LLM agent 时、对每个 LLM call 必检以下 7 项：
+
+1. **Schema 强制**：LLM 输出要被下游程序消费时，必须用 Pydantic `output_schema` (Vertex / ADK) 或 tool function call、**不要让它返回自由文本然后正则 parse**。Validation 失败配 retry 2-3 次、不要无限。
+
+2. **职责单一 (一个 LLM call 一个职责)**：不要让一个 LLM 一次填 50 个字段。拆成多 mini LLM call、每个一个小 schema、最后 Python merge。字段之间的 reasoning bias 会让多字段一次性填出问题。
+
+3. **URL 永远 Python 算**：LLM 是 hallucination URL 重灾区。技术: 让 LLM 提 verbatim span (字面文本片段)、Python 在已知 source list (e.g. grounding segments / search results) 里 lookup resolve URL。**LLM 永远不应该输出 URL 字符串**。
+
+4. **静态数据优先 (Tier 0 决定论)**：任何能 Python 算的字段（解析、计算、查表、enum 分类、日期算术）都不让 LLM 碰。LLM 留给真正的"语义合成"。Skeleton agent + overlay callback 模式：Python 算骨架、LLM 只填 narrative、merge 顺序 Python 控制。
+
+5. **不确定性 surface**：每个 LLM 产 fact 字段必须有 `confidence: Literal["high", "medium", "low"]` + `sources: list[SourceLink]` 槽位、允许 LLM 标"不确定"。否则 LLM 默认 confident、会硬编。
+
+6. **多源 cross-check (关键字段)**：业务 critical 字段从两个独立 source 各提一次（e.g. EDINET prose + Deep Research）、第三个 LLM (judge) 读两个 summary、一致选其一 / 矛盾标 `discrepancy_note`。不要 squash 矛盾、要 surface 给 reviewer。
+
+7. **迭代修正配 max_iterations**：复杂任务 (validate / refine / gap-fill) 用 LoopAgent (critic + refiner) 但 **必须有 max_iterations 上限**（推荐 3）+ "no-progress exit" (本轮没改善就 stop)、避免无限循环。
+
+test-engineer (Phase 7) 测试 LLM agent 时：
+
+- LLM call 必须用 cassette (record-replay) 或 mock、CI 不打真 API
+- 测试 `confidence=low` / `sources=[]` 的 edge case (LLM 标"不确定"时下游怎么处理)
+- 测试 `discrepancy_note` 非空的 case (双源矛盾时报告怎么 render)
+- 测试 LoopAgent 达 max_iterations 时的退出路径 (不应该是 fatal error)
+
+system-designer (Phase 2) 设计 agent 拓扑时、对每个字段评分 Tier：
+- **Tier 0**: 纯 Python parser / formula / lookup → 不进 LLM
+- **Tier 1**: LLM + schema 约束 → 单 LLM call
+- **Tier 2**: 多源 + judge → 关键字段
+- **Tier 3**: 迭代修正 loop → 一次跑不好的复杂任务
+- 同一 schema 不同字段可以不同 tier、不要全字段一刀切
+
 ### 项目内 protocols.md（推荐机制）
 
 每个 build-agent-project 项目应在 `.build/protocols.md` 写明：
